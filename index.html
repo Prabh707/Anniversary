@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Anniversary, My Love</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #050505;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            touch-action: none; /* Prevents default touch behaviors like scrolling while tapping */
+        }
+        canvas {
+            display: block;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .content-card {
+            background: rgba(10, 10, 10, 0.75);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 3rem;
+            border-radius: 32px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            pointer-events: auto;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.05);
+        }
+        .content-card.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .content-card.hidden-card {
+            transform: translateY(100vh);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .cursive {
+            font-family: 'Dancing Script', cursive;
+            font-size: 3.8rem;
+            background: linear-gradient(
+                45deg, 
+                #ffffff, 
+                #ffdee9, 
+                #b5fffc, 
+                #ffffff
+            );
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 8s ease infinite;
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .colorful-body {
+            background: linear-gradient(to bottom, #f8fafc, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 300;
+        }
+
+        .btn-interact {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 28px;
+            border-radius: 9999px;
+            margin-top: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.8rem;
+            color: white;
+        }
+        .btn-interact:hover {
+            background: white;
+            color: black;
+            transform: scale(1.05);
+        }
+        .btn-back {
+            position: absolute;
+            bottom: 80px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        .btn-back.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .instruction {
+            position: absolute;
+            bottom: 30px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ui-layer" id="screen-1">
+        <div class="content-card visible">
+            <h2 class="text-sm uppercase tracking-widest text-white opacity-60 mb-2">A special gift for you</h2>
+            <h1 class="cursive mb-6">Happy Anniversary</h1>
+            <p class="colorful-body leading-relaxed font-light text-lg">
+                Distance cannot dim the beauty of what we share. I've filled the sky with your favorite white lilies, each one representing a beautiful memory of us.
+            </p>
+            <button class="btn-interact" onclick="nextScreen()">Open Your Garden</button>
+        </div>
+    </div>
+
+    <div class="ui-layer hidden" id="screen-2">
+        <div class="content-card" id="letter-card">
+            <h1 class="cursive mb-6 text-4xl">To My Forever</h1>
+            <div class="text-left space-y-4 text-sm leading-loose colorful-body">
+                <p>My dearest,</p>
+                <p>I wanted to bring you a garden that exists wherever you are. These lilies are for you—pure and lasting, just like my love.</p>
+                <p>Every time you look at these flowers, remember that no matter how many miles are between us, you are always the only thing on my mind.</p>
+                <p class="text-right italic font-bold">— Prabhu</p>
+            </div>
+            <button class="btn-interact" onclick="hideMessage()">Watch the Lilies</button>
+        </div>
+        
+        <button id="back-btn" class="btn-interact btn-back" onclick="showMessage()">Back to Message</button>
+        
+        <div class="instruction">Tap the sky to grow more lilies</div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, lilies = [], stars;
+        let clock = new THREE.Clock();
+        let currentScreen = 1;
+
+        // Optimized Shared Geometries to prevent lag
+        const petalGeom = new THREE.SphereGeometry(0.35, 12, 12); // Reduced segments for performance
+        petalGeom.scale(0.6, 2.0, 0.15);
+        const centerGeom = new THREE.CylinderGeometry(0.02, 0.02, 0.4, 6); // Simplified center
+        
+        const petalMat = new THREE.MeshPhongMaterial({ 
+            color: 0xffffff, 
+            side: THREE.DoubleSide,
+            shininess: 40,
+            transparent: true,
+            opacity: 0.9
+        });
+        const centerMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            const starGeometry = new THREE.BufferGeometry();
+            const starVertices = [];
+            for (let i = 0; i < 2000; i++) {
+                starVertices.push((Math.random() - 0.5) * 800, (Math.random() - 0.5) * 800, (Math.random() - 0.5) * 800);
+            }
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15 }));
+            scene.add(stars);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const pointLight = new THREE.PointLight(0xffffff, 1.0, 50);
+            pointLight.position.set(0, 10, 10);
+            scene.add(pointLight);
+
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Touch and Mouse listeners
+            const handleClick = (e) => {
+                if (currentScreen === 2) {
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    if (clientX !== undefined) createLily({ clientX, clientY });
+                }
+            };
+
+            window.addEventListener('mousedown', handleClick);
+            window.addEventListener('touchstart', handleClick, { passive: true });
+
+            animate();
+        }
+
+        function createLily(event) {
+            const group = new THREE.Group();
+
+            // Petals
+            for (let i = 0; i < 6; i++) {
+                const petal = new THREE.Mesh(petalGeom, petalMat);
+                petal.rotation.z = (i * Math.PI) / 3;
+                petal.rotation.x = 0.6;
+                group.add(petal);
+            }
+
+            // Centers
+            for (let j = 0; j < 3; j++) {
+                const center = new THREE.Mesh(centerGeom, centerMat);
+                center.position.set((Math.random()-0.5)*0.1, 0.1, 0);
+                center.rotation.x = Math.PI / 2 + (Math.random()-0.5)*0.5;
+                group.add(center);
+            }
+
+            // Optional light core (limit number of lights for performance)
+            if (lilies.length < 15) {
+                const coreLight = new THREE.PointLight(0xffffff, 0.4, 4);
+                group.add(coreLight);
+            }
+
+            let pos;
+            if (event && event.clientX) {
+                const vector = new THREE.Vector3(
+                    (event.clientX / window.innerWidth) * 2 - 1,
+                    -(event.clientY / window.innerHeight) * 2 + 1,
+                    0.5
+                );
+                vector.unproject(camera);
+                const dir = vector.sub(camera.position).normalize();
+                pos = camera.position.clone().add(dir.multiplyScalar(12));
+            } else {
+                pos = new THREE.Vector3((Math.random()-0.5)*25, -12, (Math.random()-0.5)*15);
+            }
+            
+            group.position.copy(pos);
+            group.position.z = -2 - (Math.random() * 15);
+            const s = 0.7 + Math.random() * 0.6;
+            group.scale.set(s, s, s);
+
+            group.userData = {
+                speedY: 0.015 + Math.random() * 0.025,
+                rotX: (Math.random() - 0.5) * 0.01,
+                rotY: (Math.random() - 0.5) * 0.015,
+                rotZ: (Math.random() - 0.5) * 0.01,
+                phase: Math.random() * Math.PI * 2
+            };
+
+            scene.add(group);
+            lilies.push(group);
+        }
+
+        function nextScreen() {
+            document.getElementById('screen-1').classList.add('hidden');
+            document.getElementById('screen-2').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('letter-card').classList.add('visible');
+            }, 100);
+            currentScreen = 2;
+            // Generate initial lilies gradually to avoid frame drop
+            for(let i=0; i<25; i++) {
+                setTimeout(() => createLily(null), i * 120);
+            }
+        }
+
+        function hideMessage() {
+            const card = document.getElementById('letter-card');
+            const backBtn = document.getElementById('back-btn');
+            card.classList.remove('visible');
+            card.classList.add('hidden-card');
+            setTimeout(() => {
+                backBtn.classList.add('visible');
+            }, 800);
+        }
+
+        function showMessage() {
+            const card = document.getElementById('letter-card');
+            const backBtn = document.getElementById('back-btn');
+            backBtn.classList.remove('visible');
+            setTimeout(() => {
+                card.classList.remove('hidden-card');
+                card.classList.add('visible');
+            }, 200);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            stars.rotation.y += 0.00003;
+
+            for (let i = lilies.length - 1; i >= 0; i--) {
+                const lily = lilies[i];
+                lily.position.y += lily.userData.speedY;
+                lily.position.x += Math.sin(time + lily.userData.phase) * 0.007;
+                lily.rotation.x += lily.userData.rotX;
+                lily.rotation.y += lily.userData.rotY;
+                lily.rotation.z += lily.userData.rotZ;
+
+                if (lily.position.y > 18) {
+                    scene.remove(lily);
+                    lilies.splice(i, 1);
+                }
+            }
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
